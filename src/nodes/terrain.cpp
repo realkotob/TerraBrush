@@ -14,6 +14,7 @@
 #include <godot_cpp/classes/height_map_shape3d.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/display_server.hpp>
+#include <godot_cpp/classes/rendering_server.hpp>
 #include <godot_cpp/variant/typed_dictionary.hpp>
 
 using namespace godot;
@@ -29,7 +30,9 @@ void Terrain::_notification(int what) {
     switch (what) {
         case NOTIFICATION_EXIT_TREE: {
             if (_collisionThread.is_valid()) {
-                _collisionCancellationSource.cancel();
+                if (_collisionCancellationSource.is_valid()) {
+                    _collisionCancellationSource->cancel();
+                }
                 _collisionThread->wait_to_finish();
             }
 
@@ -120,6 +123,18 @@ void Terrain::set_useSharpTransitions(const bool value) {
     _useSharpTransitions = value;
 }
 
+void Terrain::set_slopeTexturing(const bool value) {
+    _slopeTexturing = value;
+}
+
+void Terrain::set_slopeTextureIndex(const int value) {
+    _slopeTextureIndex = value;
+}
+
+void Terrain::set_slopeTextureThreshold(const float value) {
+    _slopeTextureThreshold = value;
+}
+
 void Terrain::set_waterFactor(const float value) {
     _waterFactor = value;
 }
@@ -138,6 +153,14 @@ void Terrain::set_collisionLayers(const int value) {
 
 void Terrain::set_collisionMask(const int value) {
     _collisionMask = value;
+}
+
+void Terrain::set_chunkMesh(const bool value) {
+    _chunkMesh = value;
+}
+
+void Terrain::set_chunkAABBHeight(const int value) {
+    _chunkAABBHeight = value;
 }
 
 void Terrain::set_lodLevels(const int value) {
@@ -192,10 +215,12 @@ void Terrain::terrainSplatmapsUpdated() {
 void Terrain::updateCollisionShape() {
     if (_createCollisionInThread) {
         if (_collisionThread.is_valid()) {
-            _collisionCancellationSource.cancel();
+            if (_collisionCancellationSource.is_valid()) {
+                _collisionCancellationSource->cancel();
+            }
             _collisionThread->wait_to_finish();
         }
-        _collisionCancellationSource = CancellationSource();
+        _collisionCancellationSource = memnew(CancellationSource);
     }
 
     for (int i = 0; i < _terrainCollider->get_child_count(); i++) {
@@ -229,15 +254,23 @@ void Terrain::updateCollisionShape() {
 }
 
 void Terrain::onUpdateTerrainCollision(const TypedDictionary<Ref<ZoneResource>, Dictionary> zonesData) {
-    CancellationToken token = _collisionCancellationSource.token;
+    Ref<CancellationToken> token = nullptr;
+    if (!_collisionCancellationSource.is_null()) {
+        token = _collisionCancellationSource->getToken();
+    }
 
     for (int i = 0; i < _terrainZones->get_zones().size(); i++) {
-        if (token.isCancellationRequested) {
+        if (!token.is_null() && token->isCancellationRequested()) {
             return;
         }
 
         Ref<ZoneResource> zone = _terrainZones->get_zones()[i];
         Dictionary collisionData = zonesData[zone];
+
+        Ref<HeightMapShape3D> heightMapShape3D = collisionData[CollisionDataShapeKey];
+        if (heightMapShape3D.is_null()) {
+            return;
+        }
 
         Ref<ZoneResource> leftNeighbourZone = getZoneForPosition(zone->get_zonePosition().x - 1, zone->get_zonePosition().y);
         Ref<ZoneResource> topNeighbourZone = getZoneForPosition(zone->get_zonePosition().x, zone->get_zonePosition().y - 1);
@@ -254,14 +287,14 @@ void Terrain::onUpdateTerrainCollision(const TypedDictionary<Ref<ZoneResource>, 
             waterImage = collisionData[CollisionDataWaterImageKey];
         }
 
-        if (token.isCancellationRequested) {
+        if (!token.is_null() && token->isCancellationRequested()) {
             return;
         }
 
         PackedFloat32Array terrainData = PackedFloat32Array();
         for (int y = 0; y < imageHeight; y++) {
             for (int x = 0; x < imageWidth; x++) {
-                if (token.isCancellationRequested) {
+                if (!token.is_null() && token->isCancellationRequested()) {
                     return;
                 }
 
@@ -309,11 +342,10 @@ void Terrain::onUpdateTerrainCollision(const TypedDictionary<Ref<ZoneResource>, 
             }
         }
 
-        if (token.isCancellationRequested) {
+        if (!token.is_null() && token->isCancellationRequested()) {
             return;
         }
 
-        Ref<HeightMapShape3D> heightMapShape3D = collisionData[CollisionDataShapeKey];
         call_deferred("assignCollisionData", heightMapShape3D, terrainData);
     }
 }
@@ -344,7 +376,32 @@ void Terrain::updateTextures() {
     }
 
     if (!_textureSets.is_null() && _textureSets->get_textureSets().size() > 0) {
+        bool hasAlbedoColorMap = false;
+        bool hasAlbedoCurve = false;
+        for (Ref<TextureSetResource> textureSet : _textureSets->get_textureSets()) {
+            if (!textureSet->get_albedoColorMapTexture().is_null()) {
+                hasAlbedoColorMap = true;
+            }
+            if (!textureSet->get_albedoCurveTexture().is_null()) {
+                hasAlbedoCurve = true;
+            }
+        }
+
+        Ref<Texture2D> defaultAlbedoColorMapTexture = nullptr;
+        if (hasAlbedoColorMap) {
+            defaultAlbedoColorMapTexture = ImageTexture::create_from_image(Image::create_empty(256, 1, false, Image::Format::FORMAT_RGBA8));
+        }
+
+        Ref<Texture2D> defaultAlbedoCurveTexture = nullptr;
+        if (hasAlbedoCurve) {
+            defaultAlbedoCurveTexture = ImageTexture::create_from_image(Image::create_empty(256, 1, false, Image::Format::FORMAT_RGBF));
+        }
+
         TypedArray<Ref<Texture2D>> albedoTextures = TypedArray<Ref<Texture2D>>();
+        TypedArray<Ref<Texture2D>> albedoColorMapTextures = TypedArray<Ref<Texture2D>>();
+        TypedArray<int> textureAlbedoHasColorMaps = TypedArray<int>();
+        TypedArray<Ref<Texture2D>> albedoCurveTextures = TypedArray<Ref<Texture2D>>();
+        TypedArray<int> textureAlbedoHasCurves = TypedArray<int>();
         TypedArray<int> textureDetails = TypedArray<int>();
         TypedArray<int> texturesTriplanar = TypedArray<int>();
         TypedArray<float> texturesMetallic = TypedArray<float>();
@@ -361,6 +418,30 @@ void Terrain::updateTextures() {
             if (!textureSet->get_albedoTexture().is_null()) {
                 albedoTextures.append(textureSet->get_albedoTexture());
             }
+
+            if (hasAlbedoColorMap) {
+                if (textureSet->get_albedoColorMapTexture().is_null()) {
+                    albedoColorMapTextures.append(defaultAlbedoColorMapTexture);
+                    textureAlbedoHasColorMaps.append(0);
+                } else {
+                    albedoColorMapTextures.append(textureSet->get_albedoColorMapTexture());
+                    textureAlbedoHasColorMaps.append(1);
+                }
+            }
+
+            if (hasAlbedoCurve) {
+                if (textureSet->get_albedoCurveTexture().is_null()) {
+                    albedoCurveTextures.append(defaultAlbedoCurveTexture);
+                    textureAlbedoHasCurves.append(0);
+                } else {
+                    // The "get_image" function is not implemented on the Curved Texture, so we need to use the rendering server to get the image from the curve
+                    Ref<Texture2D> curveTexture = ImageTexture::create_from_image(RenderingServer::get_singleton()->texture_2d_get(textureSet->get_albedoCurveTexture()->get_rid()));
+
+                    albedoCurveTextures.append(curveTexture);
+                    textureAlbedoHasCurves.append(1);
+                }
+            }
+
             textureDetails.append(textureSet->get_textureDetail()  <= 0 ? _textureDetail : textureSet->get_textureDetail());
             if (textureSet->get_triplanar()) {
                 triplanar = true;
@@ -390,6 +471,18 @@ void Terrain::updateTextures() {
             _clipmap->get_shader()->set_shader_parameter("Textures" + filterParamName, textureArray);
         }
 
+        if (albedoColorMapTextures.size() > 0) {
+            textureArray = Utils::texturesToTextureArray(albedoColorMapTextures);
+            _clipmap->get_shader()->set_shader_parameter(StringNames::TextureAlbedoColorMaps(), textureArray);
+            _clipmap->get_shader()->set_shader_parameter(StringNames::TextureAlbedoHasColorMaps(), textureAlbedoHasColorMaps);
+        }
+
+        if (albedoCurveTextures.size() > 0) {
+            textureArray = Utils::texturesToTextureArray(albedoCurveTextures);
+            _clipmap->get_shader()->set_shader_parameter(StringNames::TextureAlbedoCurves(), textureArray);
+            _clipmap->get_shader()->set_shader_parameter(StringNames::TextureAlbedoHasCurves(), textureAlbedoHasCurves);
+        }
+
         _clipmap->get_shader()->set_shader_parameter(StringNames::TexturesDetail(), textureDetails);
         _clipmap->get_shader()->set_shader_parameter(StringNames::Triplanar(), triplanar);
         _clipmap->get_shader()->set_shader_parameter(StringNames::TexturesTriplanar(), texturesTriplanar);
@@ -399,6 +492,9 @@ void Terrain::updateTextures() {
             _clipmap->get_shader()->set_shader_parameter(StringNames::NumberOfTextures(), textureArray->get_layers());
         }
         _clipmap->get_shader()->set_shader_parameter(StringNames::UseSharpTransitions(), _useSharpTransitions);
+        _clipmap->get_shader()->set_shader_parameter(StringNames::SlopeTexturing(), _slopeTexturing);
+        _clipmap->get_shader()->set_shader_parameter(StringNames::SlopeTextureIndex(), _slopeTextureIndex);
+        _clipmap->get_shader()->set_shader_parameter(StringNames::SlopeTextureThreshold(), _slopeTextureThreshold);
 
         if (normalTextures.size() > 0) {
             Ref<Texture2DArray> normalArray = Utils::texturesToTextureArray(normalTextures);
@@ -484,21 +580,23 @@ void Terrain::buildTerrain() {
 
         _clipmap->set_shader(shaderMaterial);
     } else {
-        _clipmap->set_shader(Utils::createCustomShaderCopy(_customShader));
+        _clipmap->set_shader(Utils::createCustomShaderCopy(_customShader, TypedArray<StringName>::make(StringNames::ColorTextures(), StringNames::WaterTextures())));
     }
 
-    _clipmap->get_clipmapMesh()->set_layer_mask(_visualInstanceLayers);
+    _clipmap->set_visualInstanceLayers(_visualInstanceLayers);
 
     _terrainCollider->set_collision_layer(_collisionLayers);
     _terrainCollider->set_collision_mask(_collisionMask);
 
     if (!Engine::get_singleton()->is_editor_hint() && (_collisionOnly || !DisplayServer::get_singleton()->window_can_draw())) {
         updateCollisionShape();
-        _clipmap->get_clipmapMesh()->set_visible(false);
+        _clipmap->set_visible(false);
     } else {
         _clipmap->set_zonesSize(_zonesSize);
         _clipmap->set_resolution(_resolution);
         _clipmap->set_terrainZones(_terrainZones);
+        _clipmap->set_chunkMesh(_chunkMesh);
+        _clipmap->set_chunkAABBHeight(_chunkAABBHeight);
         _clipmap->set_levels(_lodLevels);
         _clipmap->set_rowsPerLevel(_lodRowsPerLevel);
         _clipmap->set_initialCellWidth(_lodInitialCellWidth);

@@ -200,7 +200,7 @@ void TerraBrushEditor::_physics_process(double delta) {
         Vector3 meshToImagePosition = _mouseHitPosition + Vector3(zoneSize / 2, 0, zoneSize / 2);
         Vector2 imagePosition = Vector2(meshToImagePosition.x, meshToImagePosition.z);
 
-        _currentTool->paint(get_selectedToolType(), _brushImage, _brushSize, _brushStrength, imagePosition);
+        _currentTool->paint(get_selectedToolType(), _brushImage, _brushSize, _brushStrength, _slopeValue, imagePosition);
 
         _updateTime = UpdateDelay;
     }
@@ -317,6 +317,10 @@ bool TerraBrushEditor::onGuiInput(Camera3D *camera, const Ref<InputEvent> &event
             return true;
         }
 
+        if (_terraBrushNode->get_terrainZones().is_null()) {
+            return false;
+        }
+
         if (inputButton->get_button_index() == MouseButton::MOUSE_BUTTON_LEFT) {
             if (inputButton->is_pressed()) {
                 if (_mouseHitPosition != Vector3(Utils::InfinityValue, Utils::InfinityValue, Utils::InfinityValue)) {
@@ -390,7 +394,7 @@ Vector3 TerraBrushEditor::getRayCastWithTerrain(Camera3D *camera) {
         return Vector3(Utils::InfinityValue, Utils::InfinityValue, Utils::InfinityValue);
     }
 
-    return _terraBrushNode->getHeightForMousePosition(camera);
+    return _terraBrushNode->getHeightForMousePosition(camera, _autoAddZones);
 }
 
 StringName TerraBrushEditor::hideOverlaySelector() {
@@ -907,18 +911,26 @@ void TerraBrushEditor::set_enabled(const bool value) {
 
         if (!_terraBrushNode->get_textureSets().is_null() && _terraBrushNode->get_textureSets()->get_textureSets().size() > 0 && _textureIndex < 0) {
             _textureIndex = 0;
+        } else if (_textureIndex >= 0 && (_terraBrushNode->get_textureSets().is_null() || _terraBrushNode->get_textureSets()->get_textureSets().size() == 0)) {
+            _textureIndex = -1;
         }
 
         if (_terraBrushNode->get_foliages().size() > 0 && _foliageIndex < 0) {
             _foliageIndex = 0;
+        } else if (_foliageIndex >= 0 && _terraBrushNode->get_foliages().size() == 0) {
+            _foliageIndex = -1;
         }
 
         if (_terraBrushNode->get_objects().size() > 0 && _objectIndex < 0) {
             _objectIndex = 0;
+        } else if (_objectIndex >= 0 && _terraBrushNode->get_objects().size() == 0) {
+            _objectIndex = -1;
         }
 
         if (_terraBrushNode->get_metaInfoLayers().size() > 0 && _metaInfoLayerIndex < 0) {
             _metaInfoLayerIndex = 0;
+        } else if (_metaInfoLayerIndex >= 0 && _terraBrushNode->get_metaInfoLayers().size() == 0) {
+            _metaInfoLayerIndex = -1;
         }
     }
 }
@@ -994,6 +1006,13 @@ float TerraBrushEditor::get_brushStrength() const {
 }
 void TerraBrushEditor::set_brushStrength(const float value) {
     _brushStrength = value;
+}
+
+Vector2 TerraBrushEditor::get_slopeValue() const {
+    return _slopeValue;
+}
+void TerraBrushEditor::set_slopeValue(const Vector2 value) {
+    _slopeValue = value;
 }
 
 TerrainToolType TerraBrushEditor::get_selectedToolType() const {

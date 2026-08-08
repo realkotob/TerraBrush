@@ -173,6 +173,14 @@ void Water::set_visualInstanceLayers(const int value) {
     _visualInstanceLayers = value;
 }
 
+void Water::set_chunkMesh(const bool value) {
+    _chunkMesh = value;
+}
+
+void Water::set_chunkAABBHeight(const int value) {
+    _chunkAABBHeight = value;
+}
+
 void Water::set_lodLevels(const int value) {
     _lodLevels = value;
 }
@@ -202,10 +210,12 @@ void Water::updateWater() {
         return;
     }
 
-    _clipmap->get_clipmapMesh()->set_layer_mask(_visualInstanceLayers);
+    _clipmap->set_visualInstanceLayers(_visualInstanceLayers);
     _clipmap->set_zonesSize(_zonesSize);
     _clipmap->set_resolution(_resolution);
     _clipmap->set_terrainZones(_terrainZones);
+    _clipmap->set_chunkMesh(_chunkMesh);
+    _clipmap->set_chunkAABBHeight(_chunkAABBHeight);
     _clipmap->set_levels(_lodLevels);
     _clipmap->set_rowsPerLevel(_lodRowsPerLevel);
     _clipmap->set_initialCellWidth(_lodInitialCellWidth);
@@ -216,7 +226,7 @@ void Water::updateWater() {
         shaderMaterial->set_render_priority(-1);
         _clipmap->set_shader(shaderMaterial);
     } else {
-        Ref<ShaderMaterial> shaderMaterial = Utils::createCustomShaderCopy(_customShader);
+        Ref<ShaderMaterial> shaderMaterial = Utils::createCustomShaderCopy(_customShader, TypedArray<StringName>::make(StringNames::WaterTextures()));
         shaderMaterial->set_render_priority(-1);
         _clipmap->set_shader(shaderMaterial);
     }

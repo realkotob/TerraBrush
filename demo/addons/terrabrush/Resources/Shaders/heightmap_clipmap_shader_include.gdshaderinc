@@ -2,22 +2,30 @@
 
 uniform bool ApplyLockTextures = false;
 uniform sampler2DArray ColorTextures: hint_default_transparent, repeat_disable;
-uniform sampler2DArray LockTextures : hint_default_black;
-uniform sampler2DArray WaterTextures : hint_default_transparent, repeat_disable;
+#if CURRENT_RENDERER != RENDERER_COMPATIBILITY
+uniform sampler2DArray LockTextures: hint_default_black;
+#endif
+uniform sampler2DArray WaterTextures: hint_default_transparent, repeat_disable;
 uniform float WaterFactor = 1;
-uniform sampler2DArray Textures : source_color, filter_linear_mipmap;
-uniform sampler2DArray TexturesNearest : source_color, filter_nearest_mipmap;
-uniform sampler2DArray Splatmaps : repeat_disable;
+uniform sampler2DArray Textures: source_color, filter_linear_mipmap;
+uniform sampler2DArray TexturesNearest: source_color, filter_nearest_mipmap;
+#if CURRENT_RENDERER != RENDERER_COMPATIBILITY
+uniform sampler2DArray TextureAlbedoColorMaps: hint_default_white, source_color, filter_linear_mipmap, repeat_disable;
+uniform sampler2DArray TextureAlbedoCurves: hint_default_white, source_color, filter_linear_mipmap, repeat_disable;
+#endif
+uniform sampler2DArray Splatmaps: repeat_disable;
+uniform int[100] TextureAlbedoHasColorMaps;
+uniform int[100] TextureAlbedoHasCurves;
 uniform int[100] TexturesDetail;
 uniform int NumberOfTextures;
-uniform sampler2DArray Normals : filter_linear_mipmap;
-uniform sampler2DArray NormalsNearest : filter_nearest_mipmap;
+uniform sampler2DArray Normals: filter_linear_mipmap;
+uniform sampler2DArray NormalsNearest: filter_nearest_mipmap;
 uniform bool HasNormalTextures;
-uniform sampler2DArray RoughnessTextures : filter_linear_mipmap;
-uniform sampler2DArray RoughnessTexturesNearest : filter_nearest_mipmap;
+uniform sampler2DArray RoughnessTextures: filter_linear_mipmap;
+uniform sampler2DArray RoughnessTexturesNearest: filter_nearest_mipmap;
 uniform bool HasRoughnessTextures;
-uniform sampler2DArray HeightTextures : filter_linear_mipmap;
-uniform sampler2DArray HeightTexturesNearest : filter_nearest_mipmap;
+uniform sampler2DArray HeightTextures: filter_linear_mipmap;
+uniform sampler2DArray HeightTexturesNearest: filter_nearest_mipmap;
 uniform bool HasHeightTextures;
 uniform bool UseAntitile = true;
 uniform float BlendFactor;
@@ -29,9 +37,14 @@ uniform int[100] TexturesTriplanar;
 uniform float[100] TexturesMetallic;
 uniform float[100] TexturesSpecular;
 uniform bool UseSharpTransitions = false;
+uniform bool SlopeTexturing = false;
+uniform int SlopeTextureIndex = 1;
+uniform float SlopeTextureThreshold = 0.2;
 uniform bool ApplyMetaInfoTextures = false;
+#if CURRENT_RENDERER != RENDERER_COMPATIBILITY
 uniform sampler2DArray MetaInfoTextures: filter_nearest;
 uniform vec4[100] MetaInfoColors;
+#endif
 
 const int ALPHA_CHANNEL_USAGE_NONE = 0;
 const int ALPHA_CHANNEL_USAGE_ROUGHNESS = 1;
@@ -110,6 +123,7 @@ void calculateHeightmapVertex(
 	inout vec3 vertex,
 	inout vec3 normal,
 	inout vec3 worldVertex,
+	inout vec3 worldNormal,
 	inout vec3 triplanarPos,
 	inout vec3 triplanarPowerNormal
 ) {
@@ -121,6 +135,8 @@ void calculateHeightmapVertex(
 	float hB = calculateVertexHeight(color, vertex, worldVertex, -off.zy);
 	float hF = calculateVertexHeight(color, vertex, worldVertex, off.zy);
 	normal = normalize(vec3(hL - hR, 2.0, hB - hF));
+
+	worldNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
 
 	if (WaterFactor > 0.0) {
 		vec4 levelsMeta = color;
@@ -241,6 +257,7 @@ int findDominantTextureIndex(vec3 worldVertex) {
 
 void calculateHeightmapFragment(
 	vec3 worldVertex,
+	vec3 worldNormal,
 	vec3 triplanarPos,
 	vec3 triplanarPowerNormal,
 	inout vec3 albedo,
@@ -253,13 +270,34 @@ void calculateHeightmapFragment(
 
 	if (UseSharpTransitions) {
         int dominantTextureIndex = findDominantTextureIndex(worldVertex);
+		if (SlopeTexturing && dominantTextureIndex == 0) {
+			float slope = 1.0 - dot(normalize(worldNormal), vec3(0.0, 1.0, 0.0));
+			if (slope >= SlopeTextureThreshold) {
+				dominantTextureIndex = SlopeTextureIndex;
+			}
+		}
 
         int textureDetail = TexturesDetail[dominantTextureIndex];
         vec2 worldVertexUV = worldVertex.xz * (float(textureDetail) * (1.0 / ZonesSize));
         vec3 textureUV = vec3(worldVertexUV.x, worldVertexUV.y, float(dominantTextureIndex));
 
-        vec4 dominantTexture = getVec4Texture(textureUV, triplanarPos, triplanarPowerNormal,
-                                           Textures, TexturesNearest, false);
+        vec4 dominantTexture = vec4(0);
+#if CURRENT_RENDERER != RENDERER_COMPATIBILITY		
+		if (TextureAlbedoHasColorMaps[dominantTextureIndex] == 1) {
+			vec4 textureAlbedo = getVec4Texture(textureUV, triplanarPos, triplanarPowerNormal, Textures, TexturesNearest, false);
+			float textureAlbedoSample = textureAlbedo.r;
+			
+			if (TextureAlbedoHasCurves[dominantTextureIndex] == 1) {
+				textureAlbedoSample = texture(TextureAlbedoCurves, vec3(vec2(textureAlbedoSample), textureUV.z)).r;
+			}			
+			
+			dominantTexture = texture(TextureAlbedoColorMaps, vec3(vec2(textureAlbedoSample), textureUV.z));						
+		} else {
+			dominantTexture = getVec4Texture(textureUV, triplanarPos, triplanarPowerNormal, Textures, TexturesNearest, false);			
+		}
+#else
+		dominantTexture = getVec4Texture(textureUV, triplanarPos, triplanarPowerNormal, Textures, TexturesNearest, false);					
+#endif		
 
         albedo = dominantTexture.rgb;
 
@@ -283,7 +321,7 @@ void calculateHeightmapFragment(
                 roughness = normalTexture.a;
             }
         }
-		
+
 		metallic = TexturesMetallic[dominantTextureIndex];
 		specular = TexturesSpecular[dominantTextureIndex];
     } else {
@@ -302,6 +340,7 @@ void calculateHeightmapFragment(
         }
         float splatmapLayers = (textureZoneUV.z * ceil(float(NumberOfTextures) / 4.0));
 
+		float maxSlopeValue = 0.0;
         for (int i = 0; i < NumberOfTextures; i++) {
             int textureDetail = TexturesDetail[i];
             vec2 worldVertexUV = worldVertex.xz * (float(textureDetail) * (1.0 / ZonesSize));
@@ -311,6 +350,24 @@ void calculateHeightmapFragment(
             vec4 currentSplatmap = texture(Splatmaps, splatmapUV);
             int currentChannel = i % 4;
             float channelValue = getChannelValue(currentChannel, currentSplatmap);
+
+			if (SlopeTexturing) {
+				if (i == 0) {
+					maxSlopeValue = channelValue;
+				}
+
+				float slope = 1.0 - dot(normalize(worldNormal), vec3(0.0, 1.0, 0.0));
+				if (slope >= SlopeTextureThreshold) {
+					float smoothSlopeValue = min(maxSlopeValue, smoothstep(0.0, 0.1, slope - SlopeTextureThreshold));
+					if (i == 0) {
+						channelValue -= smoothSlopeValue;
+					} else if (i == SlopeTextureIndex) {
+						channelValue += smoothSlopeValue;
+					}
+
+					channelValue = clamp(channelValue, 0, 1);
+				}
+			}
 
             if (channelValue <= 0.0001) {
                 continue;
@@ -323,7 +380,23 @@ void calculateHeightmapFragment(
 			float currentMetallic = 0.0;
 			float currentSpecular = 0.0;
 
-            currentTexture = getVec4Texture(textureUV, triplanarPos, triplanarPowerNormal, Textures, TexturesNearest, false);
+#if CURRENT_RENDERER != RENDERER_COMPATIBILITY
+			if (TextureAlbedoHasColorMaps[i] == 1) {
+				vec4 textureAlbedo = getVec4Texture(textureUV, triplanarPos, triplanarPowerNormal, Textures, TexturesNearest, false);
+				float textureAlbedoSample = textureAlbedo.r;
+				
+				if (TextureAlbedoHasCurves[i] == 1) {
+					textureAlbedoSample = texture(TextureAlbedoCurves, vec3(vec2(textureAlbedoSample), textureUV.z)).r;
+				}
+				
+				currentTexture = texture(TextureAlbedoColorMaps, vec3(vec2(textureAlbedoSample), textureUV.z));			
+			} else {
+				currentTexture = getVec4Texture(textureUV, triplanarPos, triplanarPowerNormal, Textures, TexturesNearest, false);
+			}
+#else
+			currentTexture = getVec4Texture(textureUV, triplanarPos, triplanarPowerNormal, Textures, TexturesNearest, false);			
+#endif			
+			
             currentRoughness = vec4(currentTexture.a * float(AlbedoAlphaChannelUsage == ALPHA_CHANNEL_USAGE_ROUGHNESS));
             currentHeight = vec4(currentTexture.a * float(AlbedoAlphaChannelUsage == ALPHA_CHANNEL_USAGE_HEIGHT));
             if (HasNormalTextures) {
@@ -337,7 +410,7 @@ void calculateHeightmapFragment(
             if (HasHeightTextures) {
                 currentHeight = getVec4Texture(textureUV, triplanarPos, triplanarPowerNormal, HeightTextures, HeightTexturesNearest, false);
             }
-			
+
 			currentMetallic = TexturesMetallic[i];
 			currentSpecular = TexturesSpecular[i];
 
@@ -356,7 +429,7 @@ void calculateHeightmapFragment(
             resultNormal += currentNormal * heightBlendedChannelValue;
             resultRoughness += currentRoughness * heightBlendedChannelValue;
 			resultMetallic += currentMetallic * heightBlendedChannelValue;
-			resultSpecular += currentSpecular * heightBlendedChannelValue;			
+			resultSpecular += currentSpecular * heightBlendedChannelValue;
         }
 
 		if (channelSum > 0.0) {
@@ -369,7 +442,7 @@ void calculateHeightmapFragment(
 	        if (HasNormalTextures) {
 	            normalMap = resultNormal.xyz / channelSum;
 	        }
-			
+
 			metallic = resultMetallic / channelSum;
 			specular = resultSpecular / channelSum;
 		} else {
@@ -384,6 +457,7 @@ void calculateHeightmapFragment(
 	vec4 color = texture(ColorTextures, zoneUV);
 	albedo = mix(albedo, color.rgb, color.a);
 
+#if CURRENT_RENDERER != RENDERER_COMPATIBILITY
     if (ApplyLockTextures) {
         vec4 lockTexture = texture(LockTextures, zoneUV);
         float lockValue = (1.0 - lockTexture.r);
@@ -395,7 +469,8 @@ void calculateHeightmapFragment(
 		if (metaInfoTexture.r >= 0.0) {
 			albedo *= MetaInfoColors[int(metaInfoTexture.r)].rgb;
 		}
-    }    
+    }
+#endif
 
     if (zoneUV.z < 0.0) {
         discard;

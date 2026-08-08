@@ -39,5 +39,9 @@ compile_commands.json
 demo/addons/terrabrush/bin
 demo/bin
 
-# GDVM
-.gdvmrc
+# Kate
+
+*.kate-swp
+
+# RadDBG
+terrabrush.raddbg

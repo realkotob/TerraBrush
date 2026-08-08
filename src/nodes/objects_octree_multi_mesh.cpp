@@ -1,6 +1,7 @@
 #include "objects_octree_multi_mesh.h"
 #include "../misc/zone_utils.h"
 #include "../misc/utils.h"
+#include "../misc/string_names.h"
 
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/engine.hpp>
@@ -25,7 +26,9 @@ void ObjectsOctreeMultiMesh::_notification(int what) {
     switch (what) {
         case NOTIFICATION_EXIT_TREE: {
             if (_objectsThread.is_valid()) {
-                _cancellationTokenSource.cancel();
+                if (_cancellationTokenSource.is_valid()) {
+                    _cancellationTokenSource->cancel();
+                }
                 _objectsThread->wait_to_finish();
             }
 
@@ -73,9 +76,9 @@ void ObjectsOctreeMultiMesh::_physics_process(double delta) {
 
         Vector3 currentPosition = to_local(camera->get_global_position());
         if (currentPosition.distance_to(_lastUpdatedPosition) > _definition->get_updateDistanceThreshold()) {
-            updateMeshes();
-
             _lastUpdatedPosition = currentPosition;
+
+            updateMeshes();
         }
 
         _updateTime = 0;
@@ -120,6 +123,8 @@ void ObjectsOctreeMultiMesh::initialize() {
 
     _staticBodyContainer = memnew(StaticBody3D);
     _staticBodyContainer->set_name("StaticBody");
+    _staticBodyContainer->set_collision_layer(_definition->get_collisionLayers());
+    _staticBodyContainer->set_collision_mask(_definition->get_collisionMask());
     add_child(_staticBodyContainer);
 
     updateMeshes();
@@ -176,8 +181,9 @@ void ObjectsOctreeMultiMesh::initializeMeshesAndCollision() {
                 }
 
                 Dictionary collisionShapeInfoInfo = Dictionary();
-                collisionShapeInfoInfo[CollisionShapeInfoInfo_ShapeKey] = lodMeshDefinition->get_collisionShape();
-                collisionShapeInfoInfo[CollisionShapeInfoInfo_OffsetKey] = lodMeshDefinition->get_collisionOffset();
+                collisionShapeInfoInfo[CollisionShapeInfo_ShapeKey] = lodMeshDefinition->get_collisionShape();
+                collisionShapeInfoInfo[CollisionShapeInfo_OffsetKey] = lodMeshDefinition->get_collisionOffset();
+                collisionShapeInfoInfo[CollisionShapeInfo_TagsKey] = lodMeshDefinition->get_collisionTags();
 
                 _collisionShapes[i] = collisionShapeInfoInfo;
             }
@@ -194,8 +200,8 @@ void ObjectsOctreeMultiMesh::initializeMeshesAndCollision() {
                 }
 
                 Dictionary collisionShapeInfoInfo = Dictionary();
-                collisionShapeInfoInfo[CollisionShapeInfoInfo_ShapeKey] = collisionShape->get_shape();
-                collisionShapeInfoInfo[CollisionShapeInfoInfo_OffsetKey] = collisionShape->get_position();
+                collisionShapeInfoInfo[CollisionShapeInfo_ShapeKey] = collisionShape->get_shape();
+                collisionShapeInfoInfo[CollisionShapeInfo_OffsetKey] = collisionShape->get_position();
 
                 _collisionShapes[i] = collisionShapeInfoInfo;
             }
@@ -329,11 +335,13 @@ bool ObjectsOctreeMultiMesh::sortLODs(const Ref<ObjectOctreeLODDefinitionResourc
 void ObjectsOctreeMultiMesh::updateMeshes() {
     if (_loadInThread) {
         if (_objectsThread.is_valid()) {
-            _cancellationTokenSource.cancel();
+            if (_cancellationTokenSource.is_valid()) {
+                _cancellationTokenSource->cancel();
+            }
             _objectsThread->wait_to_finish();
         }
 
-        _cancellationTokenSource = CancellationSource();
+        _cancellationTokenSource = memnew(CancellationSource);
 
         _objectsThread.instantiate();
         _objectsThread->start(Callable(this, "updateMeshesAsync"));
@@ -353,9 +361,12 @@ Ref<ObjectOctreeLODDefinitionResource> ObjectsOctreeMultiMesh::getLODDefinitionF
 }
 
 void ObjectsOctreeMultiMesh::updateMeshesAsync() {
-    CancellationToken cancellationToken = _cancellationTokenSource.token;
+    Ref<CancellationToken> cancellationToken = nullptr;
+    if (!_cancellationTokenSource.is_null()) {
+        cancellationToken = _cancellationTokenSource->getToken();;
+    }
 
-    if (cancellationToken.isCancellationRequested) return;
+    if (!cancellationToken.is_null() && cancellationToken->isCancellationRequested()) return;
 
     if (_sortedLODDefinitions.size() == 0 || _multiMeshIntances.size() == 0) {
         return;
@@ -376,12 +387,12 @@ void ObjectsOctreeMultiMesh::updateMeshesAsync() {
     std::vector<Ref<RefCounted>> nodes = _octree->getNearby(_lastUpdatedPosition, _maxDistance);
     std::vector<Ref<ObjectsOctreeNodeInfo>> toRemoveNodes = std::vector<Ref<ObjectsOctreeNodeInfo>>();
     for (Ref<ObjectsOctreeNodeInfo> nodeInfo : nodes) {
-        if (cancellationToken.isCancellationRequested) return;
+        if (!cancellationToken.is_null() && cancellationToken->isCancellationRequested()) return;
 
         float nodeDistance = nodeInfo->get_position().distance_to(_lastUpdatedPosition);
         Ref<ObjectOctreeLODDefinitionResource> lodDefinition = getLODDefinitionForDistance(nodeDistance);
         if (!lodDefinition.is_null()) {
-            if (cancellationToken.isCancellationRequested) return;
+            if (!cancellationToken.is_null() && cancellationToken->isCancellationRequested()) return;
             int lodDefinitionIndex = _sortedLODDefinitions.find(lodDefinition);
 
             if (nodeInfo->get_hidden()) {
@@ -420,18 +431,26 @@ void ObjectsOctreeMultiMesh::updateMeshesAsync() {
             ));
 
             if (lodDefinition->get_addCollision() && (_collisionShapes.has(nodeInfo->get_meshIndex()))) {
-                if (cancellationToken.isCancellationRequested) return;
+                if (!cancellationToken.is_null() && cancellationToken->isCancellationRequested()) return;
 
                 Dictionary shapeInfo = _collisionShapes[nodeInfo->get_meshIndex()];
 
                 if (nodeInfo->get_collisionShape() == nullptr) {
                     CollisionShape3D *collisionShape = memnew(CollisionShape3D);
-                    collisionShape->set_shape(shapeInfo[CollisionShapeInfoInfo_ShapeKey]);
-                    collisionShape->set_position(nodeInfo->get_position() + shapeInfo[CollisionShapeInfoInfo_OffsetKey]);                 
+                    collisionShape->set_shape(shapeInfo[CollisionShapeInfo_ShapeKey]);
+                    collisionShape->set_position(nodeInfo->get_position() + shapeInfo[CollisionShapeInfo_OffsetKey]);
                     collisionShape->set_rotation(nodeInfo->get_meshRotation());
                     collisionShape->set_scale(lodMeshDefinition->get_scale() * nodeInfo->get_meshSizeFactor());
                     nodeInfo->set_collisionShape(collisionShape);
                     collisionShape->set_meta("TerraBrush_OctreeNodeInfo_Id", nodeInfo->get_id());
+
+                    if (shapeInfo.has(CollisionShapeInfo_TagsKey)) {
+                        TypedDictionary<String, Variant> tags = shapeInfo[CollisionShapeInfo_TagsKey];
+                        for (String key : tags.keys()) {
+                            collisionShape->set_meta(key, tags[key]);
+                        }
+                    }
+
                     _staticBodyContainer->call_deferred("add_child", collisionShape);
                 }
 
@@ -446,10 +465,10 @@ void ObjectsOctreeMultiMesh::updateMeshesAsync() {
 
     TypedArray<Ref<ObjectsOctreeNodeInfo>> actualNodesToRemove = TypedArray<Ref<ObjectsOctreeNodeInfo>>();
     for (Ref<ObjectsOctreeNodeInfo> actualNode : _actualNodesWithCollision) {
-        if (cancellationToken.isCancellationRequested) return;
+        if (!cancellationToken.is_null() && cancellationToken->isCancellationRequested()) return;
 
         if (std::find(nodes.begin(), nodes.end(), actualNode) == nodes.end() || std::find(toRemoveNodes.begin(), toRemoveNodes.end(), actualNode) != toRemoveNodes.end()) {
-            if (cancellationToken.isCancellationRequested) return;
+            if (!cancellationToken.is_null() && cancellationToken->isCancellationRequested()) return;
 
             actualNode->get_collisionShape()->call_deferred("queue_free");
             actualNode->set_collisionShape(nullptr);
@@ -480,6 +499,8 @@ void ObjectsOctreeMultiMesh::updateMeshesAsync() {
             }
         }
     }
+
+    call_deferred("emit_signal", StringNames::ObjectUpdated(), _objectsIndex);
 }
 
 void ObjectsOctreeMultiMesh::assignMultiMesheInstances(const Ref<MultiMesh> &multiMesh, const PackedFloat32Array instances) {

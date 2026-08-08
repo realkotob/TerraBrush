@@ -32,6 +32,7 @@ void TerraBrush::_bind_methods() {
     ClassDB::bind_method(D_METHOD("getHeightForScreenPosition", "camera", "screenPosition"), &TerraBrush::getHeightForScreenPosition);
     ClassDB::bind_method(D_METHOD("hideObject", "objectLayerIndex", "objectId"), &TerraBrush::hideObject);
     ClassDB::bind_method(D_METHOD("showObject", "objectLayerIndex", "objectId"), &TerraBrush::showObject);
+    ClassDB::bind_method(D_METHOD("onObjectUpdated", "objectIndex"), &TerraBrush::onObjectUpdated);
 
     ADD_SIGNAL(MethodInfo(StringNames::TerrainLoaded()));
 
@@ -64,6 +65,14 @@ void TerraBrush::_bind_methods() {
     ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "customShader", PROPERTY_HINT_RESOURCE_TYPE, "ShaderMaterial"), "set_customShader", "get_customShader");
 
     ADD_GROUP("LOD", "");
+
+    ClassDB::bind_method(D_METHOD("get_chunkMesh"), &TerraBrush::get_chunkMesh);
+    ClassDB::bind_method(D_METHOD("set_chunkMesh", "value"), &TerraBrush::set_chunkMesh);
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "chunkMesh"), "set_chunkMesh", "get_chunkMesh");
+
+    ClassDB::bind_method(D_METHOD("get_chunkAABBHeight"), &TerraBrush::get_chunkAABBHeight);
+    ClassDB::bind_method(D_METHOD("set_chunkAABBHeight", "value"), &TerraBrush::set_chunkAABBHeight);
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "chunkAABBHeight"), "set_chunkAABBHeight", "get_chunkAABBHeight");
 
     ClassDB::bind_method(D_METHOD("get_lodLevels"), &TerraBrush::get_lodLevels);
     ClassDB::bind_method(D_METHOD("set_lodLevels", "value"), &TerraBrush::set_lodLevels);
@@ -124,6 +133,18 @@ void TerraBrush::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_useSharpTransitions"), &TerraBrush::get_useSharpTransitions);
     ClassDB::bind_method(D_METHOD("set_useSharpTransitions", "value"), &TerraBrush::set_useSharpTransitions);
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "useSharpTransitions"), "set_useSharpTransitions", "get_useSharpTransitions");
+
+    ClassDB::bind_method(D_METHOD("get_slopeTexturing"), &TerraBrush::get_slopeTexturing);
+    ClassDB::bind_method(D_METHOD("set_slopeTexturing", "value"), &TerraBrush::set_slopeTexturing);
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "slopeTexturing"), "set_slopeTexturing", "get_slopeTexturing");
+
+    ClassDB::bind_method(D_METHOD("get_slopeTextureIndex"), &TerraBrush::get_slopeTextureIndex);
+    ClassDB::bind_method(D_METHOD("set_slopeTextureIndex", "value"), &TerraBrush::set_slopeTextureIndex);
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "slopeTextureIndex"), "set_slopeTextureIndex", "get_slopeTextureIndex");
+
+    ClassDB::bind_method(D_METHOD("get_slopeTextureThreshold"), &TerraBrush::get_slopeTextureThreshold);
+    ClassDB::bind_method(D_METHOD("set_slopeTextureThreshold", "value"), &TerraBrush::set_slopeTextureThreshold);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "slopeTextureThreshold", PROPERTY_HINT_RANGE, "0,1,0.001"), "set_slopeTextureThreshold", "get_slopeTextureThreshold");
 
     ADD_GROUP("Foliages", "");
 
@@ -212,6 +233,9 @@ TerraBrush::TerraBrush() {
     _albedoAlphaChannelUsage = AlphaChannelUsage::ALPHACHANNELUSAGE_NONE;
     _normalAlphaChannelUsage = AlphaChannelUsage::ALPHACHANNELUSAGE_NONE;
     _useSharpTransitions = false;
+    _slopeTexturing = false;
+    _slopeTextureIndex = 1;
+    _slopeTextureThreshold = 0.2;
 
     // Foliages settings
     _foliages = TypedArray<Ref<FoliageResource>>();
@@ -237,6 +261,13 @@ TerraBrush::TerraBrush() {
 }
 
 TerraBrush::~TerraBrush() {}
+
+void TerraBrush::_validate_property(PropertyInfo &property) const {
+    TypedArray<String> slopeTexturingProperties = {"slopeTextureIndex", "slopeTextureThreshold"};
+    if (slopeTexturingProperties.has(property.name)) {
+        property.usage = _slopeTexturing ? PROPERTY_USAGE_DEFAULT : PROPERTY_USAGE_NO_EDITOR;
+    }
+}
 
 void TerraBrush::_ready() {
     set_physics_interpolation_mode(PhysicsInterpolationMode::PHYSICS_INTERPOLATION_MODE_OFF);
@@ -363,6 +394,20 @@ void TerraBrush::set_customShader(const Ref<ShaderMaterial> &value) {
     }
 }
 
+bool TerraBrush::get_chunkMesh() const {
+    return _chunkMesh;
+}
+void TerraBrush::set_chunkMesh(const bool value) {
+    _chunkMesh = value;
+}
+
+int TerraBrush::get_chunkAABBHeight() const {
+    return _chunkAABBHeight;
+}
+void TerraBrush::set_chunkAABBHeight(const int value) {
+    _chunkAABBHeight = value;
+}
+
 int TerraBrush::get_lodLevels() const {
     return _lodLevels;
 }
@@ -459,6 +504,29 @@ bool TerraBrush::get_useSharpTransitions() const {
 }
 void TerraBrush::set_useSharpTransitions(const bool value) {
     _useSharpTransitions = value;
+}
+
+bool TerraBrush::get_slopeTexturing() const {
+    return _slopeTexturing;
+}
+void TerraBrush::set_slopeTexturing(const bool value) {
+    _slopeTexturing = value;
+
+    notify_property_list_changed();
+}
+
+int TerraBrush::get_slopeTextureIndex() const {
+    return _slopeTextureIndex;
+}
+void TerraBrush::set_slopeTextureIndex(const int value) {
+    _slopeTextureIndex = value;
+}
+
+float TerraBrush::get_slopeTextureThreshold() const {
+    return _slopeTextureThreshold;
+}
+void TerraBrush::set_slopeTextureThreshold(const float value) {
+    _slopeTextureThreshold = value;
 }
 
 TypedArray<Ref<FoliageResource>> TerraBrush::get_foliages() const {
@@ -572,7 +640,12 @@ void TerraBrush::loadTerrain() {
     _terrain->set_albedoAlphaChannelUsage(_albedoAlphaChannelUsage);
     _terrain->set_normalAlphaChannelUsage(_normalAlphaChannelUsage);
     _terrain->set_useSharpTransitions(_useSharpTransitions);
+    _terrain->set_slopeTexturing(_slopeTexturing);
+    _terrain->set_slopeTextureIndex(_slopeTextureIndex);
+    _terrain->set_slopeTextureThreshold(_slopeTextureThreshold);
     _terrain->set_waterFactor(_waterDefinition.is_null() ? 0 : _waterDefinition->get_waterFactor());
+    _terrain->set_chunkMesh(_chunkMesh);
+    _terrain->set_chunkAABBHeight(_chunkAABBHeight);
     _terrain->set_lodLevels(_lodLevels);
     _terrain->set_lodRowsPerLevel(_lodRowsPerLevel);
     _terrain->set_lodInitialCellWidth(_lodInitialCellWidth);
@@ -696,6 +769,8 @@ void TerraBrush::createWater() {
         _waterNode->set_far(_waterDefinition->get_waterFar());
         _waterNode->set_edgeColor(_waterDefinition->get_waterEdgeColor());
         _waterNode->set_visualInstanceLayers(_waterDefinition->get_visualInstanceLayers());
+        _waterNode->set_chunkMesh(_chunkMesh);
+        _waterNode->set_chunkAABBHeight(_chunkAABBHeight);
         _waterNode->set_lodLevels(_lodLevels);
         _waterNode->set_lodRowsPerLevel(_lodRowsPerLevel);
         _waterNode->set_lodInitialCellWidth(_lodInitialCellWidth);
@@ -737,6 +812,8 @@ void TerraBrush::createSnow() {
     _snowNode->set_zonesSize(_zonesSize);
     _snowNode->set_resolution(_resolution);
     _snowNode->set_snowDefinition(_snowDefinition);
+    _snowNode->set_chunkMesh(_chunkMesh);
+    _snowNode->set_chunkAABBHeight(_chunkAABBHeight);
     _snowNode->set_lodLevels(_lodLevels);
     _snowNode->set_lodRowsPerLevel(_lodRowsPerLevel);
     _snowNode->set_lodInitialCellWidth(_lodInitialCellWidth);
@@ -775,7 +852,7 @@ Ref<Texture2D> TerraBrush::get_defaultNoise() {
 void TerraBrush::onTerrainCollisionUpdated() {
     if (!_initialized) {
         _initialized = true;
-        emit_signal(StringNames::TerrainLoaded());
+        raiseInitializedEvent();
     }
 }
 
@@ -917,6 +994,7 @@ void TerraBrush::createObjects() {
     }
 
     bool loadInThread = _objectLoadingStrategy == ObjectLoadingStrategy::OBJECTLOADINGSTRATEGY_THREADED || (_objectLoadingStrategy == ObjectLoadingStrategy::OBJECTLOADINGSTRATEGY_THREADEDINEDITORONLY && Engine::get_singleton()->is_editor_hint());
+    _objectsInitialized = std::unordered_map<int, bool>();
     for (int objectIndex = 0; objectIndex < _objects.size(); objectIndex++) {
         Ref<ObjectResource> objectItem = _objects[objectIndex];
         if (objectItem.is_null() || objectItem->get_definition().is_null()) {
@@ -944,7 +1022,9 @@ void TerraBrush::createObjects() {
         objectNode->set_waterFactor(_waterDefinition.is_null() ? 0 : _waterDefinition->get_waterFactor());
         objectNode->set_loadInThread(loadInThread);
         objectNode->set_defaultObjectFrequency(_defaultObjectFrequency);
+        objectNode->connect(StringNames::ObjectUpdated(), Callable(this, "onObjectUpdated"));
 
+        _objectsInitialized[objectIndex] = false;
         _objectsContainerNode->add_child(objectNode);
     }
 
@@ -975,7 +1055,7 @@ void TerraBrush::updateCameraPosition(Camera3D *viewportCamera) {
     if (_foliagesNode != nullptr) {
         for (int i = 0; i < _foliagesNode->get_child_count(); i++) {
             Foliage *foliageNode = Object::cast_to<Foliage>(_foliagesNode->get_child(i));
-            foliageNode->updateEditorCameraPosition(viewportCamera);
+            foliageNode->updateEditorCameraPosition();
         }
     }
 }
@@ -1004,6 +1084,9 @@ void TerraBrush::addInteractionPoint(float x, float y) {
 }
 
 Ref<TerrainPositionInformation> TerraBrush::getPositionInformation(float x, float y) {
+    float globalX = x;
+    float globalY = y;
+
     x += _zonesSize / 2;
     y += _zonesSize / 2;
 
@@ -1011,6 +1094,9 @@ Ref<TerrainPositionInformation> TerraBrush::getPositionInformation(float x, floa
         x -= _lodInitialCellWidth / 2.0f;
         y -= _lodInitialCellWidth / 2.0f;
     }
+
+    x -= get_global_position().x;
+    y -= get_global_position().z;
 
     ZoneInfo zoneInfo = ZoneUtils::getPixelToZoneInfo(x, y, _zonesSize, _resolution);
     Ref<ZoneResource> zone = _terrainZones->getZoneForZoneInfo(zoneInfo);
@@ -1042,6 +1128,13 @@ Ref<TerrainPositionInformation> TerraBrush::getPositionInformation(float x, floa
         TypedArray<Ref<TerrainPositionTextureInformation>> textures = TypedArray<Ref<TerrainPositionTextureInformation>>();
         if (zone->get_splatmapsImage().size() > 0) {
             std::vector<Ref<TerrainPositionTextureInformation>> tempTextures = std::vector<Ref<TerrainPositionTextureInformation>>();
+
+            float slope = 0.0;
+            float maxSlopeValue = 0.0;
+            if (_slopeTexturing) {
+                slope = getSlopeAtPosition(globalX, globalY);
+            }
+
             for (int i = 0; i < _textureSets->get_textureSets().size(); i++) {
                 Ref<TextureSetResource> textureSet = _textureSets->get_textureSets()[i];
 
@@ -1053,7 +1146,29 @@ Ref<TerrainPositionInformation> TerraBrush::getPositionInformation(float x, floa
                 Ref<TerrainPositionTextureInformation> textureInfo = memnew(TerrainPositionTextureInformation);
                 textureInfo->set_index(i);
                 textureInfo->set_name(textureSet->get_name());
-                textureInfo->set_factor(pixel[colorIndex]);
+
+                float textureFactor = pixel[colorIndex];
+
+				if (_slopeTexturing && slope >= _slopeTextureThreshold) {
+                    if (i == 0) {
+                        maxSlopeValue = textureFactor;
+                    }
+
+                    if (_useSharpTransitions) {
+                        textureFactor = i == 0 ? 0.0 : i == _slopeTextureIndex ? maxSlopeValue : textureFactor;
+                    } else {
+                        float smoothSlopeValue = Math::min(maxSlopeValue, Math::smoothstep(0.0f, 0.1f, slope - _slopeTextureThreshold));
+                        if (i == 0) {
+                            textureFactor -= smoothSlopeValue;
+                        } else if (i == _slopeTextureIndex) {
+                            textureFactor += smoothSlopeValue;
+                        }
+
+                        textureFactor = Math::clamp(textureFactor, 0.0f, 1.0f);
+                    }
+				}
+
+                textureInfo->set_factor(textureFactor);
 
                 tempTextures.push_back(textureInfo);
             }
@@ -1173,6 +1288,25 @@ void TerraBrush::initializeImagesForTerrain(Ref<ZoneResource> zone) {
     }
 }
 
+void TerraBrush::raiseInitializedEvent() {
+    bool allObjectsInitialized = true;
+    if (_objects.size() != 0) {
+        for (int i = 0; i < _objects.size(); i++) {
+            if (!allObjectsInitialized) {
+                continue;
+            }
+
+            if (!_objectsInitialized[i]) {
+                allObjectsInitialized = false;
+            }
+        }
+    }
+
+    if (_initialized && allObjectsInitialized) {
+        emit_signal(StringNames::TerrainLoaded());
+    }
+}
+
 StaticBody3D *TerraBrush::getTerrainCollider() const {
     return _terrain->get_terrainCollider();
 }
@@ -1189,9 +1323,18 @@ float TerraBrush::getHeightAtPosition(float x, float z, bool useGlobalPosition) 
     }
 
     ZoneInfo zoneInfo = ZoneUtils::getPixelToZoneInfo(x + (zoneSize / 2), z + (zoneSize / 2), zoneSize, resolution);
+    return getHeightForZoneInfo(zoneInfo, useGlobalPosition);
+}
+
+float TerraBrush::getHeightForZoneInfo(ZoneInfo &zoneInfo, bool useGlobalPosition) const {
     Ref<ZoneResource> zone;
     if (!get_terrainZones().is_null()) {
         zone = get_terrainZones()->getZoneForZoneInfo(zoneInfo);
+    }
+
+    Vector3 globalPosition = Vector3(0, 0, 0);
+    if (useGlobalPosition) {
+        globalPosition = get_global_position();
     }
 
     if (!zone.is_null() && !zone->get_heightMapImage().is_null()) {
@@ -1203,25 +1346,53 @@ float TerraBrush::getHeightAtPosition(float x, float z, bool useGlobalPosition) 
     return Utils::InfinityValue;
 }
 
-Vector3 TerraBrush::getHeightForMousePosition(Camera3D *camera) const {
-    Vector2 screenPosition = camera->get_viewport()->get_mouse_position();
-    return getHeightForScreenPosition(camera, screenPosition);
+Vector3 TerraBrush::getNormalForHeights(float hL, float hR, float hB, float hF) const {
+    return Vector3(hL - hR, 2.0, hB - hF).normalized();
 }
 
-Vector3 TerraBrush::getHeightForScreenPosition(Camera3D *camera, Vector2 screenPosition) const {
+float TerraBrush::getSlopeAtPosition(float x, float y) const {
+	float hL = getHeightAtPosition(x - 1.0, y, false);
+	float hR = getHeightAtPosition(x + 1.0, y, false);
+	float hB = getHeightAtPosition(x, y - 1.0, false);
+	float hF = getHeightAtPosition(x, y + 1.0, false);
+
+    Vector3 normal = getNormalForHeights(hL, hR, hB, hF);
+
+    return 1.0 - normal.dot(Vector3(0.0, 1.0, 0.0));
+}
+
+Vector3 TerraBrush::getHeightForMousePosition(Camera3D *camera, bool allowNoZone) const {
+    Vector2 screenPosition = camera->get_viewport()->get_mouse_position();
+    return getHeightForScreenPosition(camera, screenPosition, allowNoZone);
+}
+
+Vector3 TerraBrush::getHeightForScreenPosition(Camera3D *camera, Vector2 screenPosition, bool allowNoZone) const {
     Vector3 from = camera->project_ray_origin(screenPosition);
     Vector3 direction = camera->project_ray_normal(screenPosition);
+
+    Vector3 noZonePosition = Vector3(Utils::InfinityValue, Utils::InfinityValue, Utils::InfinityValue);
+    Vector3 previousPoint = Vector3(Utils::InfinityValue, Utils::InfinityValue, Utils::InfinityValue);
+    float previousHeight = Utils::InfinityValue;
 
     for (int i = 0; i < 20000; i++) {
         Vector3 position = from + (direction * i * 0.1f) - get_global_position();
 
         float zoneHeight = getHeightAtPosition(position.x, position.z, false);
-        if (zoneHeight != Utils::InfinityValue && zoneHeight >= position.y) {
+        if (zoneHeight != Utils::InfinityValue && zoneHeight >= position.y && (!allowNoZone || (zoneHeight <= position.y + 1.0 || (previousHeight != Utils::InfinityValue && previousHeight < previousPoint.y)))) {
             return Vector3(position.x, zoneHeight, position.z) + get_global_position();
+        } else if (allowNoZone && noZonePosition.x == Utils::InfinityValue && position.y <= get_global_position().y) {
+            noZonePosition = Vector3(position.x, position.y, position.z);
         }
+
+        previousPoint = position;
+        previousHeight = zoneHeight;
     }
 
-    return Vector3(Utils::InfinityValue, Utils::InfinityValue, Utils::InfinityValue);
+    if (allowNoZone) {
+        return noZonePosition;
+    } else {
+        return Vector3(Utils::InfinityValue, Utils::InfinityValue, Utils::InfinityValue);
+    }
 }
 
 void TerraBrush::hideObject(int objectLayerIndex, int64_t objectId) const {
@@ -1245,5 +1416,12 @@ void TerraBrush::showObject(int objectLayerIndex, int64_t objectId) const {
         } else {
             ERR_FAIL_MSG("Only the octree objects can use the removeObject function. For the PackedScene objects, you can add them using add_child()");
         }
+    }
+}
+
+void TerraBrush::onObjectUpdated(const int objectIndex) {
+    if (!_objectsInitialized[objectIndex]) {
+        _objectsInitialized[objectIndex] = true;
+        raiseInitializedEvent();
     }
 }

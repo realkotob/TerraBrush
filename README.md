@@ -3,7 +3,7 @@
   <br>
 </h1>
 
-<h4 align="center">A simple <b>GDExtension</b> Terrain heightmap editor for <a href="https://godotengine.org/" target="_blank">Godot engine 4.5</a></h4>
+<h4 align="center">A simple <b>GDExtension</b> Terrain heightmap editor for <a href="https://godotengine.org/" target="_blank">Godot engine 4.5+</a></h4>
 
 <p align="center">
   <a href="https://godotengine.org/">
@@ -60,6 +60,7 @@ It runs in the browser, hosted on itch.io :
 * **Paint color** - Add colors to your terrain
 * **Paint textures** - Add textures to your terrain with the painting tool
   - Normal map and roughness texture are supported
+  - Automatic slope based texturing
 * **Foliage** - Add foliage to your terrain (ex. Grass)
   - The foliage follows the main camera with a given maximum distance
 * **Packed scenes** - Scatter packed scenes to the terrain
@@ -78,6 +79,7 @@ It runs in the browser, hosted on itch.io :
 * **Hole** - Paint hole. Useful to create cave or juste to make a terrain that is not square.
 * **Multiple brushes**
   - Custom brushes are also available
+* **Slope painting limit** - Limit the painting with slope angles for ALL the tools
 * **Pie menu**
 * **Shortcuts**
   - The plugin has been made so it's really easy to use. A lot of shortcuts are available.
@@ -86,7 +88,7 @@ It runs in the browser, hosted on itch.io :
     - B - Show the PieMenu for the current brush
     - N - Show the options for the current tool (ex. While painting the textures, the PieMenu will show textures)
     - G - Show a quick select for the brush size
-    - H - Show a quick select for the brush strength
+    - J - Show a quick select for the brush strength
     - K - Toggle "Auto add zones"
     - X - Lock on X axis
     - Z - Lock on Z axis
@@ -186,6 +188,8 @@ This was designed this way to avoid spamming the properties of the terrain to up
 |Import Terrain|Import terrain components from various images.|
 |Export Terrain|Export all components of the terrain to images.|
 |**LOD**||
+|Chunk Mesh|Whether or not the clipmap is chunked (chunked means more draw calls but better frustum culling so might get you better perfs).|
+|Chunk AABB Height|Control the AABB height of each chunk. If left to -1 (default value), the zone size will be used as the height (ex. 256).|
 |LOD Levels|The number of levels the clipmap will be made of. The default value is 5.|
 |LOD Rows Per Level|The number of rows per level. This is a base number, depending on the level, there might be more rows (ex. the first level is a little bit different so it has more cells). The default value is 101.|
 |LOD Initial Cell Width|The initial size of the cell. Each level will double the size of the previous level cell' size. the default value is 1.0 (1 meter)|
@@ -197,6 +201,8 @@ This was designed this way to avoid spamming the properties of the terrain to up
 |Texture Sets|Let you define the textures of the terrain. **Be aware, that all the textures must be in the same format (ex. Mipmaps, compression mode, etc.)**. **Make sure to hit the update terrain button when you modify this and the terrain has already been created**. You should create a **TextureSetsResource** which holds several **TextureSetResource**. A set will accept an Albedo, Normal and Roughness texture. You can create a resource file with the TextureSetsResource so you can reuse your textures with other terrain.|
 |TextureSetResource[x].Name|The name of the texture. This information is useful when you want to query the terrain to know the texture at a specific position.|
 |TextureSetResource[x].AlbedoTexture|The albedo texure of the set.|
+|TextureSetResource[x].AlbedoColorMapTexture|**Not working with the compatibility renderer**. Apply a gradient color map to the albedo texture (Gray scaled albedo texture works best).|
+|TextureSetResource[x].AlbedoCurveTexture|**Not working with the compatibility renderer**. **Only available when using the `AlbedoColorMapTexture`**, allow you to modify the albedo sample to use with the color map using a `Curve`. For example, you could increase the black value with the curve.|
 |TextureSetResource[x].NormalTexture|The normal map texture of the set.|
 |TextureSetResource[x].RoughnessTexture|The roughness texture of the set.|
 |TextureSetResource[x].TextureDetail|This will determine how often your texture will be repeated on the terrain. A higher value means more repetitions. The default value is -1 to take the global TextureDetail of the terrain.|
@@ -210,6 +216,9 @@ This was designed this way to avoid spamming the properties of the terrain to up
 |Albedo Alpha Channel Usage|Allow the use of the alpha channel of the albedo texture for either roughness or height. The default value is none.|
 |Normal Alpha Channel Usage|Allow the use of the alpha channel of the normal texture for either roughness or height. The default value is none.|
 |Use Sharp Transitions|Use sharp transition between textures instead of blending them together. This will use the most dominant texture.|
+|Slope Texturing|Enable the slope based texturing.|
+|Slope Texture Index|The index of the texture that will be painted when slope is detected. The default value is 1, as the second texture.|
+|Slope Texture Threshold|The Threshold to check if the ground is considered a slope (the dot product of the normal >= Threshold). The default value is 0.2.|
 |**Foliage**||
 |Foliages|An array of FoliageResource. **Make sure to hit the update terrain button when you modify this and the terrain has already been created**.|
 |FoliageResource[x].Definition|The definition of the foliage. Create a **FoliageDefinitionResource** to use it. You can create a resource of this definition to reuse it in other terrain.|
@@ -219,6 +228,8 @@ This was designed this way to avoid spamming the properties of the terrain to up
 |FoliageResource[x].Definition.WindStrength|Creates some movement for the mesh. The default value is 0.1.|
 |FoliageResource[x].Definition.NoiseTexture|This texture makes sure that the foliage placement is not too straight. If not specified, the default noise texture will be used.|
 |FoliageResource[x].Definition.VisualInstanceLayers|The godot layer on which the foliage will be displayed.|
+|FoliageResource[x].Definition.ChunkFoliage|**(MultiMesh only)** Whether or not the foliage is chunked (chunked means more draw calls but better frustum culling so might get you better perfs).|
+|FoliageResource[x].Definition.ChunkAABBHeight|**(MultiMesh only)** Control the AABB height of each chunk. If left to -1 (default value), the zone size will be used as the height (ex. 256).|
 |FoliageResource[x].Definition.LODLevels|**(MultiMesh only)** The number of levels the clipmap will be made of. The default value is 3.|
 |FoliageResource[x].Definition.LODRowsPerLevel|**(MultiMesh only)** The number of rows per level. This is a base number, depending on the level, there might be more rows (ex. the first level is a little bit different so it has more cells). The default value is 50.|
 |FoliageResource[x].Definition.LODInitialCellWidth|**(MultiMesh only)** The initial size of the cell. Each level will double the size of the previous level cell' size. the default value is 1.0 (1 meter)|
@@ -256,6 +267,8 @@ This was designed this way to avoid spamming the properties of the terrain to up
 |ObjectResource[x].Definition.UpdateDistanceThreshold|**(MultiMeshes only)** This sets the movement threshold before we need to check if the objects are changing LOD.|
 |ObjectResource[x].Definition.UpdateTimeFrequency|**(MultiMeshes only)** This sets how often we check if the movement threshold has been reached.|
 |ObjectResource[x].Definition.VisualInstanceLayers|**(MultiMeshes only)** The visual layers used with the MultiMeshes.|
+|ObjectResource[x].Definition.CollisionLayers|**(MultiMeshes only)** The collision layer used for the static body of the collisions.|
+|ObjectResource[x].Definition.CollisionMask|**(MultiMeshes only)** The collision mask used for the static body of the collisions.|
 |ObjectResource[x].Hide|Hide the whole layer of objects. This is useful when you want to see something on the terrain and the objects block the view.|
 |**Water**||
 |Water Definition|The definition of water. Create a **WaterResource** to use it. You can create a resource of this definition to reuse it in other terrain. **Make sure to hit the update terrain button when you modify this and the terrain has already been created**.|
@@ -434,6 +447,24 @@ if collider != null:
     $TerraBrush.hideObject(0, objectId)
 ```
 
+
+#### Custom tags on octree collisions
+
+When using collision shape with Octree objects, you can populate the dictionary called `CollisonTags`.
+This will populate the meta on the collision shape itself (similar to `TerraBrush_OctreeNodeInfo_Id`).
+You will then be able to query that information (ex. to know what kind of tree you are cutting) from the collsion shape :
+
+```gdscript
+var collider: StaticBody3D = $RayCast3D.get_collider()
+if collider != null:
+  var colliderShapeId: int = $RayCast3D.get_collider_shape()
+  var colliderShapeOwner = collider.shape_find_owner(colliderShapeId)
+  var shape = collider.shape_owner_get_owner(colliderShapeOwner)
+  if shape != null && shape.has_meta("MyCustomTag"):
+    var tag = shape.get_meta("MyCustomTag")
+    print("Custom tag : ", tag)
+```
+
 #### Generate a heightmap with code
 
 You can easily create a heightmap with code with TerraBrush (even at runtime).
@@ -519,4 +550,3 @@ MIT
 > Twitter [@spimortdev](https://twitter.com/spimortdev) &nbsp;&middot;&nbsp;
 > BSky [@spimort](https://bsky.app/profile/spimort.bsky.social) &nbsp;&middot;&nbsp;
 > Mastodon [@spimort](https://mastodon.gamedev.place/@spimort)
-

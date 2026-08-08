@@ -4,6 +4,7 @@
 #include "terra_brush_editor.h"
 #include "terra_brush_plugin.h"
 
+#include "editor_nodes/angle_range_selector.h"
 #include "editor_nodes/brush_decal.h"
 #include "editor_nodes/brush_numeric_selector.h"
 #include "editor_nodes/custom_content_pie_menu.h"
@@ -53,6 +54,7 @@
 #include "misc/keybind_manager.h"
 #include "misc/dialog_utils.h"
 #include "misc/tool_undo_redo.h"
+#include "misc/thread_utils.h"
 
 #include "octree/point_octree.h"
 #include "octree/point_octree_bounding_box.h"
@@ -85,8 +87,11 @@ void initialize_terrabrush_module(ModuleInitializationLevel level) {
         GDREGISTER_INTERNAL_CLASS(PointOctreeObject);
         GDREGISTER_INTERNAL_CLASS(PointOctreeRay);
         GDREGISTER_INTERNAL_CLASS(ObjectsOctreeNodeInfo);
+        GDREGISTER_INTERNAL_CLASS(CancellationSource);
+        GDREGISTER_INTERNAL_CLASS(CancellationToken);
 
         // Internal nodes
+        GDREGISTER_INTERNAL_CLASS(AngleRangeSelector);
         GDREGISTER_INTERNAL_CLASS(BrushDecal);
         GDREGISTER_INTERNAL_CLASS(BrushNumericSelector);
         GDREGISTER_INTERNAL_CLASS(Clipmap);

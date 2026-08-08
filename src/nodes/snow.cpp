@@ -109,6 +109,20 @@ void Snow::set_snowDefinition(const Ref<SnowResource> &value) {
     _snowDefinition = value;
 }
 
+bool Snow::get_chunkMesh() const {
+    return _chunkMesh;
+}
+void Snow::set_chunkMesh(const bool value) {
+    _chunkMesh = value;
+}
+
+int Snow::get_chunkAABBHeight() const {
+    return _chunkAABBHeight;
+}
+void Snow::set_chunkAABBHeight(const int value) {
+    _chunkAABBHeight = value;
+}
+
 int Snow::get_lodLevels() const {
     return _lodLevels;
 }
@@ -139,10 +153,12 @@ void Snow::updateSnow() {
         return;
     }
 
-    _clipmap->get_clipmapMesh()->set_layer_mask(_snowDefinition->get_visualInstanceLayers());
+    _clipmap->set_visualInstanceLayers(_snowDefinition->get_visualInstanceLayers());
     _clipmap->set_zonesSize(_zonesSize);
     _clipmap->set_resolution(_resolution);
     _clipmap->set_terrainZones(_terrainZones);
+    _clipmap->set_chunkMesh(_chunkMesh);
+    _clipmap->set_chunkAABBHeight(_chunkAABBHeight);
     _clipmap->set_levels(_lodLevels);
     _clipmap->set_rowsPerLevel(_lodRowsPerLevel);
     _clipmap->set_initialCellWidth(_lodInitialCellWidth);
@@ -152,7 +168,7 @@ void Snow::updateSnow() {
         shaderMaterial->set_shader(ResourceLoader::get_singleton()->load("res://addons/terrabrush/Resources/Shaders/snow_clipmap_shader.gdshader"));
         _clipmap->set_shader(shaderMaterial);
     } else {
-        _clipmap->set_shader(Utils::createCustomShaderCopy(_snowDefinition->get_customShader()));
+        _clipmap->set_shader(Utils::createCustomShaderCopy(_snowDefinition->get_customShader(), TypedArray<StringName>::make(StringNames::SnowTextures())));
     }
 
     _clipmap->createMesh();

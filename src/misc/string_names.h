@@ -93,5 +93,13 @@ class StringNames {
         const static StringName TexturesMetallic();
         const static StringName TexturesSpecular();
         const static StringName TerrainCollisionUpdated();
+        const static StringName SlopeTexturing();
+        const static StringName SlopeTextureIndex();
+        const static StringName SlopeTextureThreshold();
+        const static StringName ObjectUpdated();
+        const static StringName TextureAlbedoColorMaps();
+        const static StringName TextureAlbedoHasColorMaps();
+        const static StringName TextureAlbedoCurves();
+        const static StringName TextureAlbedoHasCurves();
 };
 #endif

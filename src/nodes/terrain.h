@@ -45,11 +45,16 @@ private:
     AlphaChannelUsage _albedoAlphaChannelUsage = AlphaChannelUsage::ALPHACHANNELUSAGE_NONE;
     AlphaChannelUsage _normalAlphaChannelUsage = AlphaChannelUsage::ALPHACHANNELUSAGE_NONE;
     bool _useSharpTransitions = false;
+    bool _slopeTexturing = false;
+    int _slopeTextureIndex = 1;
+    float _slopeTextureThreshold = 0.2;
     float _waterFactor = 0;
     Ref<Texture2D> _defaultTexture = nullptr;
     int _visualInstanceLayers = 0;
     int _collisionLayers = 0;
     int _collisionMask = 0;
+    bool _chunkMesh = true;
+    int _chunkAABBHeight = -1;
     int _lodLevels = 0;
     int _lodRowsPerLevel = 0;
     float _lodInitialCellWidth = 0;
@@ -59,7 +64,7 @@ private:
     TypedArray<Ref<MetaInfoLayerResource>> _metaInfoLayers = TypedArray<Ref<MetaInfoLayerResource>>();
 
     Ref<Thread> _collisionThread = nullptr;
-    CancellationSource _collisionCancellationSource = CancellationSource();
+    Ref<CancellationSource> _collisionCancellationSource = nullptr;
 
     void terrainTextureUpdated();
     void terrainSplatmapsUpdated();
@@ -94,11 +99,16 @@ public:
     void set_albedoAlphaChannelUsage(const AlphaChannelUsage value);
     void set_normalAlphaChannelUsage(const AlphaChannelUsage value);
     void set_useSharpTransitions(const bool value);
+    void set_slopeTexturing(const bool value);
+    void set_slopeTextureIndex(const int value);
+    void set_slopeTextureThreshold(const float value);
     void set_waterFactor(const float value);
     void set_defaultTexture(const Ref<Texture2D> &value);
     void set_visualInstanceLayers(const int value);
     void set_collisionLayers(const int value);
     void set_collisionMask(const int value);
+    void set_chunkMesh(const bool value);
+    void set_chunkAABBHeight(const int value);
     void set_lodLevels(const int value);
     void set_lodRowsPerLevel(const int value);
     void set_lodInitialCellWidth(const float value);

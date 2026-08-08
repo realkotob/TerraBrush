@@ -11,6 +11,7 @@
 #include <godot_cpp/classes/texture2d.hpp>
 #include <godot_cpp/classes/camera3d.hpp>
 #include <godot_cpp/classes/static_body3d.hpp>
+#include <godot_cpp/classes/ref.hpp>
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/classes/collision_shape3d.hpp>
 #include <godot_cpp/classes/multi_mesh.hpp>
@@ -26,7 +27,7 @@ class ObjectsOctreeNodeInfo : public RefCounted {
     GDCLASS(ObjectsOctreeNodeInfo, RefCounted);
 
 private:
-    int64_t _id;
+    int64_t _id = 0;
     Vector2i _imagePosition = Vector2i();
     Vector3 _position = Vector3();
     int _meshIndex = 0;
@@ -92,8 +93,9 @@ private:
     //     public Vector3 Offset { get;set; } = Vector3.Zero;
     //     public Shape3D Shape { get;set; }
     // }
-    static constexpr const char* CollisionShapeInfoInfo_OffsetKey = "Offset";
-    static constexpr const char* CollisionShapeInfoInfo_ShapeKey = "Shape";
+    static constexpr const char* CollisionShapeInfo_OffsetKey = "Offset";
+    static constexpr const char* CollisionShapeInfo_ShapeKey = "Shape";
+    static constexpr const char* CollisionShapeInfo_TagsKey = "Tags";
 
     StaticBody3D *_staticBodyContainer = nullptr;
     Ref<Image> _noiseImageCache = nullptr;
@@ -105,7 +107,7 @@ private:
     TypedDictionary<int, Dictionary> _collisionShapes = TypedDictionary<int, Dictionary>(); // Sadly, we gotta use generic Dictonary here because the way Variant/Godot works. The origianl definition was : private Dictionary<int, CollisionShapeInfoInfo> _collisionShapes;
     TypedDictionary<int, Array> _multiMeshIntances = TypedDictionary<int, Array>(); // Sadly, we gotta use generic Array/Dictionary here because the way Variant/Godot works. The origianl definition was : private Dictionary<int, MultiMeshInstanceInfo[]> _multiMeshIntances;
     std::unordered_set<Ref<ObjectsOctreeNodeInfo>> _actualNodesWithCollision = std::unordered_set<Ref<ObjectsOctreeNodeInfo>>();
-    CancellationSource _cancellationTokenSource = CancellationSource();
+    Ref<CancellationSource> _cancellationTokenSource = nullptr;
     Ref<Thread> _objectsThread = nullptr;
     bool _initialized = false;
     int64_t _lastId = 0;

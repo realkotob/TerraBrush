@@ -25,9 +25,10 @@ class TerraBrush : public Node3D {
 private:
     const int HeightMapFactor = 1;
 
-    String _version = "0.14.4-alpha";
+    String _version = "0.14.8-alpha";
 
     bool _initialized = false;
+    std::unordered_map<int, bool> _objectsInitialized = std::unordered_map<int, bool>();
 
     Terrain *_terrain = nullptr;
     Node3D *_foliagesNode = nullptr;
@@ -48,6 +49,8 @@ private:
     Ref<ShaderMaterial> _customShader = nullptr;
 
     // LOD Settings
+    bool _chunkMesh = true;
+    int _chunkAABBHeight = -1;
     int _lodLevels = 0;
     int _lodRowsPerLevel = 0;
     float _lodInitialCellWidth = 0;
@@ -66,6 +69,9 @@ private:
     AlphaChannelUsage _albedoAlphaChannelUsage = AlphaChannelUsage::ALPHACHANNELUSAGE_NONE;
     AlphaChannelUsage _normalAlphaChannelUsage = AlphaChannelUsage::ALPHACHANNELUSAGE_NONE;
     bool _useSharpTransitions = false;
+    bool _slopeTexturing = false;
+    int _slopeTextureIndex = 1;
+    float _slopeTextureThreshold = 0.2;
 
     // Foliage settings
     TypedArray<Ref<FoliageResource>> _foliages = TypedArray<Ref<FoliageResource>>();
@@ -94,9 +100,11 @@ private:
     void createSnow();
     void createMetaInfo();
     void initializeImagesForTerrain(Ref<ZoneResource> zone);
+    void raiseInitializedEvent();
 
 protected:
     static void _bind_methods();
+    void _validate_property(PropertyInfo &property) const;
 
 public:
     TerraBrush();
@@ -124,6 +132,12 @@ public:
 
     Ref<ShaderMaterial> get_customShader() const;
     void set_customShader(const Ref<ShaderMaterial> &value);
+
+    bool get_chunkMesh() const;
+    void set_chunkMesh(const bool value);
+
+    int get_chunkAABBHeight() const;
+    void set_chunkAABBHeight(const int value);
 
     int get_lodLevels() const;
     void set_lodLevels(const int value);
@@ -166,6 +180,15 @@ public:
 
     bool get_useSharpTransitions() const;
     void set_useSharpTransitions(const bool value);
+
+    bool get_slopeTexturing() const;
+    void set_slopeTexturing(const bool value);
+
+    int get_slopeTextureIndex() const;
+    void set_slopeTextureIndex(const int value);
+
+    float get_slopeTextureThreshold() const;
+    void set_slopeTextureThreshold(const float value);
 
     TypedArray<Ref<FoliageResource>> get_foliages() const;
     void set_foliages(const TypedArray<Ref<FoliageResource>> value);
@@ -215,9 +238,13 @@ public:
     Ref<ZoneResource> addNewZone(Vector2i zonePosition);
     StaticBody3D *getTerrainCollider() const;
     float getHeightAtPosition(float x, float z, bool useGlobalPosition) const;
-    Vector3 getHeightForMousePosition(Camera3D *camera) const;
-    Vector3 getHeightForScreenPosition(Camera3D *camera, Vector2 screenPosition) const;
+    float getHeightForZoneInfo(ZoneInfo &zoneInfo, bool useGlobalPosition) const;
+    Vector3 getNormalForHeights(float hL, float hR, float hB, float hF) const;
+    float getSlopeAtPosition(float x, float y) const;
+    Vector3 getHeightForMousePosition(Camera3D *camera, bool allowNoZone = false) const;
+    Vector3 getHeightForScreenPosition(Camera3D *camera, Vector2 screenPosition, bool allowNoZone = false) const;
     void hideObject(int objectLayerIndex, int64_t objectId) const;
     void showObject(int objectLayerIndex, int64_t objectId) const;
+    void onObjectUpdated(const int objectIndex);
 };
 #endif

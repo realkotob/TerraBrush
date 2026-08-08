@@ -23,6 +23,8 @@ private:
     int _visualInstanceLayers = 0;
 
     // _multimesh settings
+    bool _chunkFoliage = true;
+    int _chunkAABBHeight = -1;
     int _lodLevels = 0;
     int _lodRowsPerLevel = 0;
     float _lodInitialCellWidth = 0;
@@ -69,6 +71,12 @@ public:
     void set_visualInstanceLayers(const int value);
 
     // _multimesh settings
+    bool get_chunkFoliage() const;
+    void set_chunkFoliage(const bool value);
+
+    int get_chunkAABBHeight() const;
+    void set_chunkAABBHeight(const int value);
+
     int get_lodLevels() const;
     void set_lodLevels(const int value);
 
@@ -103,7 +111,7 @@ public:
     void set_randomPlacementRange(const float value);
 
     TypedArray<int> get_applyOnTextureIndexes() const;
-    void set_applyOnTextureIndexes(const TypedArray<int>);
+    void set_applyOnTextureIndexes(const TypedArray<int> value);
 
     Ref<ShaderMaterial> get_customShader() const;
     void set_customShader(const Ref<ShaderMaterial> &value);

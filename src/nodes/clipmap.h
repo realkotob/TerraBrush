@@ -15,28 +15,41 @@ class Clipmap : public Node3D {
 
 private:
     Ref<ShaderMaterial> _clipmapShader = nullptr;
-    MeshInstance3D *_clipmapMesh = nullptr;
+    Node3D *_meshesContainer = nullptr;
+
     int _zonesSize = 0;
     int _resolution = 0;
     Ref<ZonesResource> _terrainZones = nullptr;
+    bool _chunkMesh = true;
+    int _chunkAABBHeight = -1;
     int _levels = 0;
     int _rowsPerLevel = 0;
     float _initialCellWidth = 0;
+    int _visualInstanceLayers = 0;
     Ref<ShaderMaterial> _shader = nullptr;
 
     Vector3 getCameraPosition();
     void updateClipmapMeshPosition(Vector3 position);
-    void generateLevel(TypedArray<Vector3> vertices, TypedArray<Vector2> uvs, TypedArray<Color> colors, int level, int rowsPerLevel, float initialCellWidth);
-    void addSquareVertices(TypedArray<Vector3> vertices, TypedArray<Vector2> uvs, float xPosition, float zPosition, float width);
-    TypedArray<float> calculateTangents(TypedArray<Vector3> vertices, TypedArray<Vector2> uvs);
+    void generateLevel(TypedArray<Vector3> &vertices, TypedArray<Vector2> &uvs, TypedArray<Color> &colors, int level, int rowsPerLevel, float initialCellWidth);
+    Vector2 generateChunkedLevel(TypedArray<Vector3> &vertices, TypedArray<Vector2> &uvs, TypedArray<Color> &colors, int level, int rowsPerLevel, float initialCellWidth, Vector2 chunkPosition);
+    void generateLevelEdges(TypedArray<Color> &colors, int level, int startIndex, int toIndex, int x, int z);
+    void addSquareVertices(TypedArray<Vector3> &vertices, TypedArray<Vector2> &uvs, float xPosition, float zPosition, float width);
+    TypedArray<float> calculateTangents(TypedArray<Vector3> &vertices, TypedArray<Vector2> &uvs);
     TypedArray<Vector2i> getZonePositions();
     void updateShaderOffsetPosition();
+    void createMeshChunks();
+    void createMeshChunk(int level, Vector2 position);
+    void generateFullMesh();
+    Ref<ArrayMesh> generateArrayMesh(TypedArray<Vector3> &vertices, TypedArray<Vector2> &uvs, TypedArray<Color> &colors);
 
 protected:
     static void _bind_methods();
     void _notification(const int what);
 
 public:
+    static const int MinChunkPosition = -2;
+    static const int MaxChunkPosition = 1;
+
     Clipmap();
     ~Clipmap();
 
@@ -52,6 +65,12 @@ public:
     Ref<ZonesResource> get_terrainZones() const;
     void set_terrainZones(const Ref<ZonesResource> &value);
 
+    bool get_chunkMesh() const;
+    void set_chunkMesh(const bool value);
+
+    int get_chunkAABBHeight() const;
+    void set_chunkAABBHeight(const int value);
+
     int get_levels() const;
     void set_levels(const int value);
 
@@ -61,10 +80,11 @@ public:
     float get_initialCellWidth() const;
     void set_initialCellWidth(const float value);
 
+    int get_visualInstanceLayers() const;
+    void set_visualInstanceLayers(const int value);
+
     Ref<ShaderMaterial> get_shader() const;
     void set_shader(const Ref<ShaderMaterial> &value);
-
-    MeshInstance3D* get_clipmapMesh() const;
 
     void clearMesh();
     void createMesh();

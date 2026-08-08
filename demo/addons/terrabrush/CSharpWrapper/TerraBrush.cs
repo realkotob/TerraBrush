@@ -62,6 +62,24 @@ public partial class TerraBrush : Node {
         }
     }
 
+    public bool ChunkMesh {
+        get {
+            return _godotHandle.AsGodotObject().Call("get_chunkMesh").AsBool();
+        }
+        set {
+            _godotHandle.AsGodotObject().Call("set_chunkMesh", value);
+        }
+    }
+
+    public int ChunkAABBHeight {
+        get {
+            return _godotHandle.AsGodotObject().Call("get_chunkAABBHeight").AsInt32();
+        }
+        set {
+            _godotHandle.AsGodotObject().Call("set_chunkAABBHeight", value);
+        }
+    }
+
     public int LODLevels {
         get {
             return _godotHandle.AsGodotObject().Call("get_lodLevels").AsInt32();
@@ -185,6 +203,33 @@ public partial class TerraBrush : Node {
         }
         set {
             _godotHandle.AsGodotObject().Call("set_useSharpTransitions", value);
+        }
+    }
+
+    public bool SlopeTexturing {
+        get {
+            return _godotHandle.AsGodotObject().Call("get_slopeTexturing").AsBool();
+        }
+        set {
+            _godotHandle.AsGodotObject().Call("set_slopeTexturing", value);
+        }
+    }
+
+    public int SlopeTextureIndex {
+        get {
+            return _godotHandle.AsGodotObject().Call("get_slopeTextureIndex").AsInt32();
+        }
+        set {
+            _godotHandle.AsGodotObject().Call("set_slopeTextureIndex", value);
+        }
+    }
+
+    public float SlopeTextureThreshold {
+        get {
+            return (float) _godotHandle.AsGodotObject().Call("get_slopeTextureThreshold").AsDouble();
+        }
+        set {
+            _godotHandle.AsGodotObject().Call("set_slopeTextureThreshold", value);
         }
     }
 
